@@ -1,0 +1,14 @@
+numpy
+pandas
+pyarrow
+pyyaml
+websockets
+httpx
+scikit-learn
+ta
+loguru
+rich
+pytest
+pytest-asyncio
+ruff
+black

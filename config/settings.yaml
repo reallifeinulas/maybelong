@@ -1,0 +1,65 @@
+runtime:
+  symbol: BTCUSDT
+  quote: USDT
+  timeframe: 1m
+  max_latency_seconds: 5
+  reconnect_backoff_seconds: 15
+  fee_bps: 2
+  slippage_bps: 1
+  min_hold_bars: 5
+  cooldown_after_stop_minutes: 30
+
+metrics:
+  windows:
+    winrate: 500
+    profit_factor: 500
+    sharpe: 1000
+    mdd: 2000
+    roi_days: 30
+  targets:
+    winrate: 0.48
+    profit_factor: 1.10
+    sharpe: 0.5
+    roi: 0.02
+    mdd: 0.15
+  reward:
+    pnl_scale: 1.0
+    vola_lambda: 0.3
+    vola_window: 50
+  penalties:
+    winrate: 0.5
+    profit_factor: 0.5
+    sharpe: 0.7
+    roi: 0.4
+    mdd: 1.0
+    alpha_floor: 0.1
+    alpha_cap: 5.0
+    increase_factor: 1.10
+    decrease_factor: 0.98
+
+sizing:
+  base: 1.0
+  beta0: 0.5
+  beta_sharpe: 0.8
+  beta_mdd: 1.2
+  kappa_max: 3.0
+
+safety:
+  drawdown_soft: 0.15
+  drawdown_hard: 0.20
+  sharpe_floor: 0.0
+  pf_wr_floor:
+    profit_factor: 0.9
+    winrate: 0.4
+    window: 300
+  roi_floor: 0.0
+  cooldown_after_stop_minutes: 30
+
+bandit:
+  algo: linucb
+  base_exploration: 0.20
+  mild_penalty: 0.10
+  severe_penalty: 0.03
+  recovery_rate: 0.02
+  max_exploration: 0.30
+  min_exploration: 0.03
