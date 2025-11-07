@@ -9,7 +9,7 @@ from __future__ import annotations
 import asyncio
 import signal
 from collections import deque
-from typing import Deque
+from typing import Deque, Optional
 
 import numpy as np
 import pandas as pd
@@ -29,22 +29,33 @@ from src.utils.logging import setup_logger
 LOGGER = setup_logger()
 
 
-async def run_pipeline() -> None:
+async def run_pipeline(
+    *,
+    feed: Optional[BinanceLiveFeed] = None,
+    trader: Optional[PaperTrader] = None,
+    bandit: Optional[ConstraintAwareBandit] = None,
+    constraints: Optional[ConstraintEvaluator] = None,
+    blender: Optional[DecisionBlender] = None,
+    reporter: Optional[LiveReporter] = None,
+    risk: Optional[RiskManager] = None,
+    max_steps: Optional[int] = None,
+) -> None:
     """Canlı akışı başlat."""
 
     settings = get_settings()
-    feed = BinanceLiveFeed()
-    trader = PaperTrader()
-    bandit = ConstraintAwareBandit()
-    constraints = ConstraintEvaluator()
-    blender = DecisionBlender()
-    reporter = LiveReporter()
-    risk = RiskManager()
+    feed = feed or BinanceLiveFeed()
+    trader = trader or PaperTrader()
+    bandit = bandit or ConstraintAwareBandit()
+    constraints = constraints or ConstraintEvaluator()
+    blender = blender or DecisionBlender()
+    reporter = reporter or LiveReporter()
+    risk = risk or RiskManager()
 
     bars: Deque[dict[str, float]] = deque(maxlen=200)
     pnls: Deque[float] = deque(maxlen=settings.metrics.windows.winrate)
     equity: Deque[float] = deque(maxlen=settings.metrics.windows.mdd)
 
+    step_count = 0
     async for bar in feed.stream_klines():
         bars.append({
             "open": bar.open,
@@ -53,7 +64,10 @@ async def run_pipeline() -> None:
             "close": bar.close,
             "volume": bar.volume,
         })
+        step_count += 1
         if len(bars) < 30:
+            if max_steps is not None and step_count >= max_steps:
+                break
             continue
         df = pd.DataFrame(list(bars))
         features = compute_features(df).iloc[-1].to_numpy()
@@ -83,6 +97,9 @@ async def run_pipeline() -> None:
         if len(pnls) > 10:
             summary = compute_summary(pnls, equity)
             reporter.render(summary)
+
+        if max_steps is not None and step_count >= max_steps:
+            break
 
 
 def shutdown(loop: asyncio.AbstractEventLoop) -> None:
