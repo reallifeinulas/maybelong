@@ -7,6 +7,8 @@ __pycache__/
 .ipynb_checkpoints/
 artifacts/
 data/
+!src/data/
+!src/data/**
 .DS_Store
 .mypy_cache/
 .pytest_cache/
