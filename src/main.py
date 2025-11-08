@@ -56,6 +56,8 @@ async def run_pipeline(
     equity: Deque[float] = deque(maxlen=settings.metrics.windows.mdd)
 
     step_count = 0
+    position_size = risk.position_size(sharpe=0.0, max_drawdown=0.0)
+    violation_level = 0.0
     async for bar in feed.stream_klines():
         bars.append({
             "open": bar.open,
@@ -71,12 +73,32 @@ async def run_pipeline(
             continue
         df = pd.DataFrame(list(bars))
         features = compute_features(df).iloc[-1].to_numpy()
-        violation_level = 0.0
         action = bandit.select_action(features.astype(np.float64), violation_level=violation_level)
-        size = risk.position_size(sharpe=0.5, max_drawdown=0.05)
-        pnl = trader.step(bar, action, size)
+        pnl = trader.step(bar, action, position_size)
         pnls.append(pnl)
         equity.append(trader.equity)
+
+        sharpe_estimate = 0.0
+        if len(pnls) > 1:
+            pnl_array = np.array(pnls, dtype=float)
+            std = pnl_array.std(ddof=1)
+            if std > 0:
+                sharpe_estimate = float(np.sqrt(252) * pnl_array.mean() / std)
+
+        if equity:
+            equity_list = list(equity)
+            peak_equity = max(equity_list)
+            current_equity = equity_list[-1]
+            if peak_equity > 0:
+                max_drawdown = (peak_equity - current_equity) / peak_equity
+            else:
+                max_drawdown = 0.0
+            starting_equity = equity_list[0]
+            roi_value = (current_equity / starting_equity - 1) if starting_equity > 0 else 0.0
+        else:
+            max_drawdown = 0.0
+            roi_value = 0.0
+
         result = constraints.update(pnl, trader.equity)
         bandit.update_feedback(features.astype(np.float64), action, result.reward)
         blend_input = BlendInput(
@@ -88,12 +110,17 @@ async def run_pipeline(
         kill_status = risk.kill_switch(
             RiskState(
                 equity=trader.equity,
-                max_drawdown=max(equity) - min(equity) if equity else 0.0,
-                sharpe=0.5,
-                roi=0.02,
+                max_drawdown=max_drawdown,
+                sharpe=sharpe_estimate,
+                roi=roi_value,
             )
         )
-        LOGGER.info(f"Karar: {decision}, Bandit eylemi: {action}, Kill-switch: {kill_status}\n")
+        LOGGER.info(
+            f"Karar: {decision}, Bandit eylemi: {action}, Kill-switch: {kill_status}, "
+            f"Sharpe≈{sharpe_estimate:.2f}, MDD≈{max_drawdown:.2%}, ROI≈{roi_value:.2%}\n"
+        )
+        position_size = risk.position_size(sharpe=sharpe_estimate, max_drawdown=max_drawdown)
+        violation_level = result.violation_level
         if len(pnls) > 10:
             summary = compute_summary(pnls, equity)
             reporter.render(summary)
