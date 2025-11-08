@@ -37,7 +37,7 @@ def compute_summary(pnls: Iterable[float], equity_curve: Iterable[float]) -> Met
     losses = -sum(p for p in pnls_list if p < 0)
     profit_factor = gains / losses if losses > 0 else float("inf")
     sharpe = _sharpe_ratio(pnls_list)
-    roi = _roi(pnls_list)
+    roi = _roi(equity_list)
     mdd = _max_drawdown(equity_list)
     return MetricsSummary(winrate=winrate, profit_factor=profit_factor, sharpe=sharpe, roi=roi, mdd=mdd)
 
@@ -66,11 +66,13 @@ def _sharpe_ratio(pnls: List[float]) -> float:
     return np.sqrt(252) * arr.mean() / std
 
 
-def _roi(pnls: List[float]) -> float:
-    if not pnls:
+def _roi(equity: List[float]) -> float:
+    if len(equity) < 2:
         return 0.0
-    cumulative = np.cumprod([1 + p for p in pnls])[-1]
-    return cumulative - 1
+    start = equity[0]
+    if start <= 0:
+        return 0.0
+    return equity[-1] / start - 1
 
 
 def _max_drawdown(equity: List[float]) -> float:

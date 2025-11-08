@@ -1,44 +1,110 @@
 # Hybrid Metric-Constrained Reinforcement Trading Bot
 
-Bu proje, Binance Futures testnet üzerinden akan verilerle çevrimiçi uyarlanan, çok kriterli kısıtlarla yönetilen bir reinforcement öğrenme ticaret botu iskeletidir. Sistem, teknik olarak nötr özellikler kullanarak karar verir ve gerçek emir göndermek yerine simülasyon yapar.
+Bu depo, Binance Futures testnet akışını taklit eden sentetik veriler üzerinde çalışan, kısıt farkındalıklı bir reinforcement learning ticaret botu iskeletini içerir. Sistem gerçek emir göndermek yerine kağıt üzerinde işlem simülasyonu gerçekleştirir ve kararlarını teknik olarak nötr özelliklerden üretir.
 
-## Mimari Özeti
-- **Veri Katmanı**: `src/data/live_feed.py` websocket ile barları toplar, `feature_engineering.py` nötr özellikleri çıkarır, `storage.py` kalıcılaştırır.
-- **Politika Katmanı**: `policy/bandit.py` ve `policy/constraints.py` ile LinUCB/SGD tabanlı seçim ve kısıt yönetimi uygulanır.
-- **Sinyal Birleştirme**: `signals/decision.py` modeli ve kural ağırlıklarını harmanlar.
-- **Yürütme**: `execution/simulator.py` paper-trade simülasyonu yapar, `execution/risk.py` kill-switch ve boyutlandırmayı yönetir.
-- **Değerlendirme**: `evaluation/metrics.py` ve `evaluation/reporting.py` metrikleri hesaplayıp Rich ile raporlar.
+> **Not:** Bu proje yalnızca eğitim ve araştırma amaçlıdır. Gerçek piyasalarda kullanım için tasarlanmamıştır ve yatırım tavsiyesi niteliği taşımaz.
 
-### Akış Şeması (Metin)
-1. Websocket akışı OHLCV barlarını üretir.
-2. Barlar özellik mühendisliğine girer, nötr teknik göstergeler çıkar.
-3. Politika banditi ve kısıt modülü ödül/ceza hesaplar.
-4. Sinyal harmanlayıcı nihai karar olasılığını üretir.
-5. Paper-trader simülasyonu PnL ve equity üretir.
-6. Metrikler güncellenir, raporlanır ve risk kontrolleri tetiklenir.
+## İçindekiler
 
-## Başlangıç Hedefleri
+1. [Mimari Genel Bakış](#mimari-genel-bakış)
+2. [Kurulum](#kurulum)
+3. [Çalıştırma](#çalıştırma)
+4. [Yapılandırma](#yapılandırma)
+5. [Testler](#testler)
+6. [Proje Dizin Yapısı](#proje-dizin-yapısı)
+7. [Yol Haritası](#yol-haritası)
 
-| Metrik        | Pencere      | Hedef  |
-|---------------|--------------|--------|
-| WinRate       | 500 işlem    | ≥ 0.48 |
-| Profit Factor | 500 işlem    | ≥ 1.10 |
-| Sharpe        | 1000 bar     | ≥ 0.50 |
-| ROI           | 30 gün       | ≥ %2   |
-| MDD           | 2000 bar     | ≤ %15  |
+## Mimari Genel Bakış
+
+- **Veri Katmanı** (`src/data/`)
+  - `live_feed.py`: Binance Futures testnet'i taklit eden sentetik bar akışını üretir.
+  - `feature_engineering.py`: OHLCV verisinden nötr faktörleri çıkarır.
+- **Politika Katmanı** (`src/policy/`)
+  - `bandit.py`: LinUCB/SGD tabanlı eylem seçimi yapar.
+  - `constraints.py`: Performans metriklerini takip eder, ödül/ceza ve kısıt ihlali skorlarını hesaplar.
+- **Sinyal Birleştirme** (`src/signals/decision.py`): Model çıktılarını kural tabanlı önyargılarla harmanlar.
+- **Yürütme** (`src/execution/`)
+  - `simulator.py`: İşlem sonuçlarını hesaplayan paper-trade motoru.
+  - `risk.py`: Kill-switch kontrollerini ve dinamik pozisyon boyutlandırmasını uygular.
+- **Değerlendirme** (`src/evaluation/`)
+  - `metrics.py`: Temel performans metriklerini hesaplar.
+  - `reporting.py`: Rich kullanarak terminale tablo halinde rapor yazar.
+
+### Veri Akışı
+1. `BinanceLiveFeed` gerçek zamanlı barları üretir.
+2. `compute_features` fonksiyonu teknik göstergeleri çıkartır.
+3. `ConstraintAwareBandit` ve `ConstraintEvaluator` ödül/ceza sinyalleri oluşturur.
+4. `DecisionBlender` nihai pozisyon önerisini belirler.
+5. `PaperTrader` işlemleri simüle eder ve equity eğrisini günceller.
+6. `RiskManager` en güncel Sharpe, maksimum gerileme ve ROI'yi yorumlayarak pozisyon boyutunu ve kill-switch durumunu üretir.
+7. `LiveReporter` metrikleri anlık olarak ekrana yansıtır.
 
 ## Kurulum
+
+Projeyi yerel ortamınıza almak için aşağıdaki adımları izleyin:
+
 ```bash
+git clone https://github.com/<kullanici>/maybelong.git
+cd maybelong
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+```
+
+> Geliştirme ortamını kapatmak için `deactivate` komutunu çalıştırabilirsiniz.
+
+## Çalıştırma
+
+Varsayılan ayarlarla pipelini başlatmak:
+
+```bash
 python -m src.main
 ```
 
-## Uyarı
-Bu depo yalnızca eğitim ve AR-GE amaçlıdır; yatırım tavsiyesi değildir.
+- İlk çalıştırmalarda sentetik veri akışı sınırsızdır; işlemi sonlandırmak için `Ctrl+C` kullanabilirsiniz.
+- Canlı akışın daha kısa sürmesini isterseniz `run_pipeline` fonksiyonuna `max_steps` parametresi verilebilir (ör. testlerde olduğu gibi 50 adım).
+
+## Yapılandırma
+
+Tüm ayarlar `config/settings.yaml` dosyasında tutulur. Başlıca bloklar:
+
+- `runtime`: Sembol, zaman dilimi, komisyon/slippage varsayımları ve minimum bar tutma süresi.
+- `metrics`: Hedef metrikler, rolling pencere boyutları ve ceza katsayıları.
+- `sizing`: Sharpe ve maksimum gerilemeye duyarlı pozisyon boyutu formülü katsayıları.
+- `safety`: Kill-switch için eşik değerleri ve soğuma süresi.
+- `bandit`: Keşif oranı sınırları ve ceza durumundaki ayarlamalar.
+
+Yapılandırmayı değiştirirken dosya formatını (YAML) koruduğunuzdan emin olun. Değişiklikler uygulama yeniden başlatıldığında otomatik olarak yüklenir.
+
+## Testler
+
+Tüm testleri çalıştırmak için:
+
+```bash
+pytest
+```
+
+- `tests/test_metrics.py`: Performans metriklerinin doğruluğunu sınar.
+- `tests/test_policy.py`: Bandit keşif davranışını ve kısıt değerleyicisinin ROI hesabını kontrol eder.
+- `tests/test_pipeline.py`: Uçtan uca pipeline'ın duman testini gerçekleştirir.
+
+## Proje Dizin Yapısı
+
+```
+maybelong/
+├─ config/           # YAML tabanlı ayarlar
+├─ src/
+│  ├─ data/          # Veri akışı ve özellik mühendisliği
+│  ├─ evaluation/    # Metrikler ve raporlama
+│  ├─ execution/     # Simülatör ve risk yönetimi
+│  ├─ policy/        # Bandit ve kısıt mantığı
+│  ├─ signals/       # Karar harmanlama
+│  └─ utils/         # Yardımcı tip ve zaman fonksiyonları
+└─ tests/            # Pytest senaryoları
+```
 
 ## Yol Haritası
+
 - Volatilite rejim algısının otomatikleştirilmesi.
 - Meta-bandit hiperparametre uyarlaması.
 - Gerçek emir katmanının opsiyonel olarak eklenmesi.

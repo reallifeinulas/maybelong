@@ -83,7 +83,7 @@ class ConstraintEvaluator:
         losses = -sum(x for x in self.pnl_window if x < 0)
         profit_factor = gains / losses if losses > 0 else float("inf")
         sharpe = self._rolling_sharpe(list(self.returns))
-        roi = self._rolling_roi(list(self.returns))
+        roi = self._rolling_roi(list(self.equity_curve))
         mdd = self._max_drawdown(list(self.equity_curve))
         return {
             "winrate": winrate,
@@ -125,11 +125,13 @@ class ConstraintEvaluator:
         return math.sqrt(252) * mean / std
 
     @staticmethod
-    def _rolling_roi(returns: list[float]) -> float:
-        if not returns:
+    def _rolling_roi(equity: list[float]) -> float:
+        if len(equity) < 2:
             return 0.0
-        cumulative = np.cumprod([1 + r for r in returns])[-1]
-        return cumulative - 1
+        start = equity[0]
+        if start <= 0:
+            return 0.0
+        return equity[-1] / start - 1
 
     @staticmethod
     def _max_drawdown(equity: list[float]) -> float:
