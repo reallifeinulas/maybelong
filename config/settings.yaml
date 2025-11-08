@@ -8,6 +8,10 @@ runtime:
   slippage_bps: 1
   min_hold_bars: 5
   cooldown_after_stop_minutes: 30
+  data_source:
+    type: csv
+    path: data/btcusdt_1m_2023-01-01.csv
+    delay_seconds: 0
 
 metrics:
   windows:

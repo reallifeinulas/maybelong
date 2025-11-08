@@ -9,14 +9,14 @@ from __future__ import annotations
 import asyncio
 import signal
 from collections import deque
-from typing import Deque, Optional
+from typing import Any, Deque, Optional
 
 import numpy as np
 import pandas as pd
 
 from src.config.settings import get_settings
 from src.data.feature_engineering import compute_features
-from src.data.live_feed import BinanceLiveFeed
+from src.data.live_feed import BinanceLiveFeed, HistoricalCSVFeed, HistoricalCSVFeedConfig
 from src.evaluation.metrics import compute_summary
 from src.evaluation.reporting import LiveReporter
 from src.execution.risk import RiskManager, RiskState
@@ -31,7 +31,7 @@ LOGGER = setup_logger()
 
 async def run_pipeline(
     *,
-    feed: Optional[BinanceLiveFeed] = None,
+    feed: Optional[Any] = None,
     trader: Optional[PaperTrader] = None,
     bandit: Optional[ConstraintAwareBandit] = None,
     constraints: Optional[ConstraintEvaluator] = None,
@@ -43,7 +43,7 @@ async def run_pipeline(
     """Canlı akışı başlat."""
 
     settings = get_settings()
-    feed = feed or BinanceLiveFeed()
+    feed = feed or _build_feed(settings)
     trader = trader or PaperTrader()
     bandit = bandit or ConstraintAwareBandit()
     constraints = constraints or ConstraintEvaluator()
@@ -127,6 +127,24 @@ async def run_pipeline(
 
         if max_steps is not None and step_count >= max_steps:
             break
+
+
+def _build_feed(settings):
+    data_cfg = settings.runtime.data_source
+    if data_cfg is None:
+        return BinanceLiveFeed()
+
+    data_type = data_cfg.type.lower()
+    if data_type == "csv":
+        if not data_cfg.path:
+            raise ValueError("CSV veri kaynağı için path belirtilmelidir.")
+        csv_config = HistoricalCSVFeedConfig(
+            path=data_cfg.path,
+            delay_seconds=float(data_cfg.delay_seconds),
+        )
+        return HistoricalCSVFeed(csv_config)
+
+    raise ValueError(f"Desteklenmeyen veri kaynağı türü: {data_cfg.type}")
 
 
 def shutdown(loop: asyncio.AbstractEventLoop) -> None:

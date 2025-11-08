@@ -6,7 +6,8 @@ __pycache__/
 .cache/
 .ipynb_checkpoints/
 artifacts/
-data/
+data/*
+!data/btcusdt_1m_2023-01-01.csv
 !src/data/
 !src/data/**
 .DS_Store
