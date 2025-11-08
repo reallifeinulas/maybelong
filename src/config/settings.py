@@ -12,9 +12,18 @@ from __future__ import annotations
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import yaml
+
+
+@dataclass
+class DataSourceConfig:
+    """Veri kaynağı yapılandırması."""
+
+    type: str
+    path: Optional[str] = None
+    delay_seconds: float = 0.0
 
 
 @dataclass
@@ -30,6 +39,7 @@ class RuntimeConfig:
     slippage_bps: int
     min_hold_bars: int
     cooldown_after_stop_minutes: int
+    data_source: Optional[DataSourceConfig] = None
 
 
 @dataclass
@@ -130,7 +140,12 @@ def _load_yaml(path: Path) -> Dict[str, Any]:
 
 
 def _parse_settings(data: Dict[str, Any]) -> Settings:
-    runtime = RuntimeConfig(**data["runtime"])
+    runtime_raw = dict(data["runtime"])
+    data_source_raw = runtime_raw.pop("data_source", None)
+    data_source = None
+    if data_source_raw is not None:
+        data_source = DataSourceConfig(**data_source_raw)
+    runtime = RuntimeConfig(**runtime_raw, data_source=data_source)
     metrics = MetricsConfig(
         windows=MetricsWindowsConfig(**data["metrics"]["windows"]),
         targets=MetricsTargetsConfig(**data["metrics"]["targets"]),
