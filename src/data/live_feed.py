@@ -1,8 +1,11 @@
-"""Binance testnet benzeri sentetik akış."""
+"""Gerçek ve sentetik veri akışlarını sağlayan yardımcılar."""
 
 from __future__ import annotations
 
 import asyncio
+import csv
+from datetime import datetime
+from pathlib import Path
 from dataclasses import dataclass
 from typing import AsyncIterator, Iterable, Optional
 
@@ -17,6 +20,15 @@ from src.utils.types import BarData
 class LiveFeedConfig:
     symbol: str
     seed: Optional[int] = None
+    delay_seconds: float = 0.0
+
+
+@dataclass(slots=True)
+class HistoricalCSVFeedConfig:
+    """CSV tabanlı gerçek veri akışı yapılandırması."""
+
+    path: str
+    timestamp_format: Optional[str] = None
     delay_seconds: float = 0.0
 
 
@@ -61,6 +73,87 @@ class BinanceLiveFeed:
             low=min(low, close),
             close=close,
             volume=volume,
+            symbol=self.config.symbol,
         )
         self._last_price = close
         return bar
+
+
+class HistoricalCSVFeed:
+    """Yerel CSV dosyasından gerçek OHLCV barlarını yayınla."""
+
+    def __init__(self, config: HistoricalCSVFeedConfig) -> None:
+        self.config = config
+        self._bars = self._load_bars(self._resolve_path(config.path))
+
+    async def stream_klines(self) -> AsyncIterator[BarData]:
+        delay = max(0.0, self.config.delay_seconds)
+        for bar in self._bars:
+            yield bar
+            if delay:
+                await asyncio.sleep(delay)
+
+    def _resolve_path(self, raw_path: str) -> Path:
+        path = Path(raw_path).expanduser()
+        if not path.is_absolute():
+            path = Path.cwd() / path
+        return path
+
+    def _load_bars(self, path: Path) -> list[BarData]:
+        if not path.exists():
+            raise FileNotFoundError(f"CSV veri kaynağı bulunamadı: {path}")
+
+        with path.open("r", encoding="utf-8") as handle:
+            reader = csv.DictReader(handle)
+            if reader.fieldnames is None:
+                raise ValueError("CSV dosyasında başlık satırı bulunamadı.")
+
+            required = {"timestamp", "open", "high", "low", "close", "volume"}
+            missing = required.difference(reader.fieldnames)
+            if missing:
+                raise ValueError(f"CSV dosyasında eksik sütun(lar): {', '.join(sorted(missing))}")
+
+            bars: list[BarData] = []
+            has_symbol = "symbol" in reader.fieldnames
+            for row in reader:
+                timestamp = self._parse_timestamp(row["timestamp"])
+                symbol = row["symbol"].strip() if has_symbol and row.get("symbol") else None
+                bars.append(
+                    BarData(
+                        timestamp=timestamp,
+                        open=float(row["open"]),
+                        high=float(row["high"]),
+                        low=float(row["low"]),
+                        close=float(row["close"]),
+                        volume=float(row["volume"]),
+                        symbol=symbol,
+                    )
+                )
+
+        if not bars:
+            raise ValueError("CSV dosyası boş görünüyor; yayınlanacak bar yok.")
+
+        bars.sort(key=lambda bar: (bar.timestamp, bar.symbol or ""))
+
+        return bars
+
+    def _parse_timestamp(self, value: str) -> int:
+        value = value.strip()
+        if not value:
+            raise ValueError("Zaman damgası boş olamaz.")
+
+        if self.config.timestamp_format:
+            dt = datetime.strptime(value, self.config.timestamp_format)
+            return int(dt.timestamp())
+
+        if value.isdigit():
+            return int(value)
+
+        try:
+            return int(float(value))
+        except ValueError:
+            try:
+                dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            except ValueError as exc:
+                raise ValueError(f"Zaman damgası çözümlenemedi: {value!r}") from exc
+            return int(dt.timestamp())

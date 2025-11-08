@@ -24,6 +24,7 @@ class BarData:
     low: float
     close: float
     volume: float
+    symbol: Optional[str] = None
 
 
 @dataclass(slots=True)

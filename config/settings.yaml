@@ -1,13 +1,28 @@
 runtime:
   symbol: BTCUSDT
+  symbols:
+    - BTCUSDT
+    - ETHUSDT
+    - BNBUSDT
+    - SOLUSDT
+    - XRPUSDT
+    - DOGEUSDT
+    - ADAUSDT
+    - AVAXUSDT
+    - LTCUSDT
+    - LINKUSDT
   quote: USDT
-  timeframe: 1m
+  timeframe: 5m
   max_latency_seconds: 5
   reconnect_backoff_seconds: 15
   fee_bps: 2
   slippage_bps: 1
   min_hold_bars: 5
   cooldown_after_stop_minutes: 30
+  data_source:
+    type: csv
+    path: data/binance_top10usdt_5m_recent.csv
+    delay_seconds: 0
 
 metrics:
   windows:

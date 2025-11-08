@@ -22,8 +22,8 @@ class DummyReporter:
     def __init__(self):
         self.rendered = []
 
-    def render(self, summary):
-        self.rendered.append(summary)
+    def render(self, summary, *, symbol=None):
+        self.rendered.append((symbol, summary))
 
 
 @pytest.mark.asyncio
@@ -65,3 +65,5 @@ async def test_run_pipeline_smoke():
     assert bandit._is_initialized is True
     assert len(constraints.pnl_window) > 0
     assert reporter.rendered, "Raporlayıcı en az bir özet üretmelidir"
+    first_symbol, _ = reporter.rendered[0]
+    assert first_symbol in {None, "BTCUSDT"}

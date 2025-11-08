@@ -22,10 +22,11 @@ class LiveReporter:
     def __init__(self) -> None:
         self.console = Console()
 
-    def render(self, summary: MetricsSummary) -> None:
+    def render(self, summary: MetricsSummary, *, symbol: str | None = None) -> None:
         """Tabloyu yazdır."""
 
-        table = Table(title="Performans Özeti")
+        title = "Performans Özeti" if symbol is None else f"{symbol} Performans Özeti"
+        table = Table(title=title)
         table.add_column("Metrik")
         table.add_column("Değer")
         table.add_row("WinRate", f"{summary.winrate:.2%}")

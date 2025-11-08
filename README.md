@@ -1,6 +1,6 @@
 # Hybrid Metric-Constrained Reinforcement Trading Bot
 
-Bu depo, Binance Futures testnet akışını taklit eden sentetik veriler üzerinde çalışan, kısıt farkındalıklı bir reinforcement learning ticaret botu iskeletini içerir. Sistem gerçek emir göndermek yerine kağıt üzerinde işlem simülasyonu gerçekleştirir ve kararlarını teknik olarak nötr özelliklerden üretir.
+Bu depo, Binance US spot piyasasından kaydedilmiş gerçek 5 dakikalık OHLCV verileri ile çalışan, kısıt farkındalıklı bir reinforcement learning ticaret botu iskeletini içerir. Sistem gerçek emir göndermek yerine kağıt üzerinde işlem simülasyonu gerçekleştirir ve kararlarını teknik olarak nötr özelliklerden üretir.
 
 > **Not:** Bu proje yalnızca eğitim ve araştırma amaçlıdır. Gerçek piyasalarda kullanım için tasarlanmamıştır ve yatırım tavsiyesi niteliği taşımaz.
 
@@ -17,7 +17,7 @@ Bu depo, Binance Futures testnet akışını taklit eden sentetik veriler üzeri
 ## Mimari Genel Bakış
 
 - **Veri Katmanı** (`src/data/`)
-  - `live_feed.py`: Binance Futures testnet'i taklit eden sentetik bar akışını üretir.
+  - `live_feed.py`: Binance Futures'tan indirilen gerçek OHLCV barlarını CSV üzerinden yayınlayan ya da ihtiyaç halinde sentetik akış oluşturan yardımcıları içerir.
   - `feature_engineering.py`: OHLCV verisinden nötr faktörleri çıkarır.
 - **Politika Katmanı** (`src/policy/`)
   - `bandit.py`: LinUCB/SGD tabanlı eylem seçimi yapar.
@@ -25,10 +25,12 @@ Bu depo, Binance Futures testnet akışını taklit eden sentetik veriler üzeri
 - **Sinyal Birleştirme** (`src/signals/decision.py`): Model çıktılarını kural tabanlı önyargılarla harmanlar.
 - **Yürütme** (`src/execution/`)
   - `simulator.py`: İşlem sonuçlarını hesaplayan paper-trade motoru.
-  - `risk.py`: Kill-switch kontrollerini ve dinamik pozisyon boyutlandırmasını uygular.
+ - `risk.py`: Kill-switch kontrollerini ve dinamik pozisyon boyutlandırmasını uygular.
 - **Değerlendirme** (`src/evaluation/`)
   - `metrics.py`: Temel performans metriklerini hesaplar.
   - `reporting.py`: Rich kullanarak terminale tablo halinde rapor yazar.
+
+Pipeline, `runtime.symbols` altında listelenen tüm pariteler için aynı karar mantığını paralel olarak uygular ve her sembolün performans metriklerini ayrı ayrı izler.
 
 ### Veri Akışı
 1. `BinanceLiveFeed` gerçek zamanlı barları üretir.
@@ -61,14 +63,14 @@ Varsayılan ayarlarla pipelini başlatmak:
 python -m src.main
 ```
 
-- İlk çalıştırmalarda sentetik veri akışı sınırsızdır; işlemi sonlandırmak için `Ctrl+C` kullanabilirsiniz.
-- Canlı akışın daha kısa sürmesini isterseniz `run_pipeline` fonksiyonuna `max_steps` parametresi verilebilir (ör. testlerde olduğu gibi 50 adım).
+- Varsayılan kurulumda `data/binance_top10usdt_5m_recent.csv` dosyasındaki, son 24 saate ait hacimce büyük 10 USDT paritesinin gerçek Binance US spot verileri kullanılır; veri dosyası bittiğinde akış durur.
+- Akışın daha kısa sürmesini isterseniz `run_pipeline` fonksiyonuna `max_steps` parametresi verilebilir (ör. testlerde olduğu gibi 50 adım).
 
 ## Yapılandırma
 
 Tüm ayarlar `config/settings.yaml` dosyasında tutulur. Başlıca bloklar:
 
-- `runtime`: Sembol, zaman dilimi, komisyon/slippage varsayımları ve minimum bar tutma süresi.
+- `runtime`: Ana sembol(ler), zaman dilimi, komisyon/slippage varsayımları, minimum bar tutma süresi ve veri kaynağı seçimi.
 - `metrics`: Hedef metrikler, rolling pencere boyutları ve ceza katsayıları.
 - `sizing`: Sharpe ve maksimum gerilemeye duyarlı pozisyon boyutu formülü katsayıları.
 - `safety`: Kill-switch için eşik değerleri ve soğuma süresi.
@@ -87,6 +89,7 @@ pytest
 - `tests/test_metrics.py`: Performans metriklerinin doğruluğunu sınar.
 - `tests/test_policy.py`: Bandit keşif davranışını ve kısıt değerleyicisinin ROI hesabını kontrol eder.
 - `tests/test_pipeline.py`: Uçtan uca pipeline'ın duman testini gerçekleştirir.
+- `tests/test_data_feed.py`: CSV tabanlı gerçek veri akışının doğru okunduğunu kontrol eder.
 
 ## Proje Dizin Yapısı
 
